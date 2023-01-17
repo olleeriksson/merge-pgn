@@ -48,11 +48,20 @@ This is the second comment } { [%cal Gf2f5,Ye2e3][%csl Gb3,Yc4] }
 Ie, normal text comments are merged and separated by two newlines. Identical comments 
 are not duplicated.
 
-### Caveats
+## Caveats
 
 One might argue that comments should be merged into completely separate {} sections. The PGN standard is vague on this, but most tools do it in this way. However because of a limitation in the chess.pgn library that this tool uses 
 (https://github.com/niklasf/python-chess) that was discussed at 
 https://github.com/niklasf/python-chess/discussions/945 and 
 https://github.com/niklasf/python-chess/issues/946 only annotations ([%cal] and [%csl] etc) have been completely separated into separate {}'s, and even that in a kind of hacky solution.
 
-There are some unhandled issues left, such as when two identical arrows of different colors are found. In that case, both are included in the PGN and left to the viewer to handle, which might not be optimal.
+## Changelog
+
+### 2023-01-17
+
+- Bugfix: Fixed a problem where multiple arrows of different colors were all kept. Now only the first encountered arrow in a specific location is kept.
+- Feature: Headers that are identical in all games being merged are kept, and only those that are not common are left empty.
+
+### 2023-01-08
+
+- First modified version after forking https://github.com/permutationlock/merge-pgn.

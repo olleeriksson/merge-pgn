@@ -6,6 +6,11 @@ import sys
 import re
 from collections import OrderedDict
 
+
+# Extracts annotations from the comment
+# cmd is for example %cal or %csl
+# uci is e2e4
+# color is G for green or B for blue
 def extract_annotations(text):
     annotations = OrderedDict()
     normal_text = ""
@@ -16,14 +21,16 @@ def extract_annotations(text):
         # Check if the current part is a placeholder
         if part and part[0] == "%":
             # Split the part by the white space
-            key, values = part.split(" ", 1)
+            cmd, values = part.split(" ", 1)
             # Split the values by the comma and strip any leading/trailing whitespace
             values = [value.strip() for value in values.split(",")]
             # Add the values to the annotations dictionary
-            if key not in annotations:
-                annotations[key] = OrderedDict()
+            if cmd not in annotations:
+                annotations[cmd] = OrderedDict()
             for value in values:
-                annotations[key][value] = None
+                uci = value[1:]
+                color = value[0]
+                annotations[cmd][uci] = color
 
         else:
             # Add the part to the normal_text variable
@@ -38,35 +45,53 @@ def merge_text_strings(text1, text2):
     # If one is included in the other then it's a duplicate comment and should be ignored
     one_in_two = text1 and text2 and text1 in text2
     two_in_one = text1 and text2 and text2 in text1
+    identical = one_in_two and two_in_one
     combined_text = ""
 
-    combined_text += text1
+    if identical:
+        return text1
+    if one_in_two:
+        return text2
+    if two_in_one:
+        return text1
     if text1 and text2:
-        combined_text += "\n\n"
-    combined_text += text2
+        return text1 + "\n\n" + text2
+    if text1:
+        return text1
+    if text2:
+        return text2
+    return ""
 
-    return combined_text
+def merge_annotations(annotations1, annotations2):
+    for cmd2, ucis in annotations2.items():
+        if cmd2 not in annotations1:
+            annotations1[cmd2] = OrderedDict()
+        for uci in ucis:
+            ucis1 = annotations1[cmd2]
+
+            if uci in ucis1:  # an arrow or circle of the same UCI and color (ie G and e2e4 in Ge2e4) already exist, use it!
+                color1 = ucis1[uci]
+                ucis1[uci] = color1
+            else:
+                color2 = ucis[uci]
+                ucis1[uci] = color2
+
+    # Format the merged annotations in the same way the placeholders appear in the text
+    formatted_annotations = ""
+    for cmd, ucis in annotations1.items():
+        values = map(lambda uci: "" + ucis[uci] + uci, ucis)
+        formatted_annotations += f"[{cmd} {','.join(values)}]"
+
+    return formatted_annotations
 
 def merge_comments(text1, text2):
     normal_text1, annotations1 = extract_annotations(text1)
     normal_text2, annotations2 = extract_annotations(text2)
 
-    # Concatenate the two normal_text variables separated by two newlines
     combined_text = merge_text_strings(normal_text1, normal_text2)
+    combined_annotations = merge_annotations(annotations1, annotations2)
 
-    # Merge the values of the annotation maps together
-    for key, values in annotations2.items():
-        if key not in annotations1:
-            annotations1[key] = OrderedDict()
-        for value in values:
-            annotations1[key][value] = None
-
-    # Format the merged annotations in the same way the placeholders appear in the text
-    formatted_annotations = ""
-    for key, values in annotations1.items():
-        formatted_annotations += f"[{key} {','.join(values.keys())}]"
-
-    return combined_text, formatted_annotations
+    return combined_text, combined_annotations
 
 def insert_braces(text):
     # Find all the occurrances of the braced string using re.finditer
@@ -112,8 +137,22 @@ def main():
             game = chess.pgn.read_game(pgn)
 
     mlist = []
+    headers = {}
     for game in games:
         mlist.extend(game.variations)
+
+        # Save all headers from all games
+        for header in game.headers.keys():
+            if header not in headers:
+                headers[header] = set()
+            headers[header].add(game.headers[header])
+
+    # Set those headers that had common values in all games
+    for header in headers:
+        values = headers[header]
+        if len(values) == 1:
+            value = values.pop()
+            master_node.headers[header] = value
 
     variations = [(master_node, mlist)]
     done = False
@@ -154,6 +193,5 @@ def main():
     pgn = insert_braces(pgn)
     
     print(pgn)
-
 
 main()
